@@ -1,6 +1,6 @@
 const File = require("../models/File");
 const Collection = require("../models/Collection");
-const fs = require("fs");
+const { cloudinary } = require("../middleware/uploadMiddleware");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/responseHelper");
 
 const uploadFiles = async (req, res, next) => {
@@ -12,13 +12,29 @@ const uploadFiles = async (req, res, next) => {
     const { collectionId } = req.body;
 
     if (!collectionId) {
-      req.files.forEach((file) => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
+      for (const file of req.files) {
+        if (file.filename) {
+          await cloudinary.uploader
+            .destroy(file.filename, { resource_type: "raw" })
+            .catch(() => {});
+        }
+      }
       return sendError(res, 400, "Collection ID is required");
     }
 
-    const collection = await Collection.findOne({ _id: collectionId, userId: req.user._id });
+    const collection = await Collection.findOne({
+      _id: collectionId,
+      userId: req.user._id,
+    });
+
     if (!collection) {
-      req.files.forEach((file) => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
+      for (const file of req.files) {
+        if (file.filename) {
+          await cloudinary.uploader
+            .destroy(file.filename, { resource_type: "raw" })
+            .catch(() => {});
+        }
+      }
       return sendError(res, 404, "Collection not found");
     }
 
@@ -33,13 +49,18 @@ const uploadFiles = async (req, res, next) => {
     }));
 
     const savedFiles = await File.insertMany(fileDocuments);
-    await Collection.findByIdAndUpdate(collectionId, { $inc: { fileCount: savedFiles.length } });
 
-    return sendSuccess(res, 201, `${savedFiles.length} file(s) uploaded`, { files: savedFiles });
+    await Collection.findByIdAndUpdate(collectionId, {
+      $inc: { fileCount: savedFiles.length },
+    });
+
+    return sendSuccess(
+      res,
+      201,
+      `${savedFiles.length} file(s) uploaded`,
+      { files: savedFiles }
+    );
   } catch (error) {
-    if (req.files) {
-      req.files.forEach((file) => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
-    }
     next(error);
   }
 };
@@ -55,7 +76,12 @@ const getFiles = async (req, res, next) => {
     if (search) query.originalName = { $regex: search, $options: "i" };
 
     const [files, total] = await Promise.all([
-      File.find(query).populate("collectionId", "title").sort(sort).skip(skip).limit(limitNum).lean(),
+      File.find(query)
+        .populate("collectionId", "title")
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
       File.countDocuments(query),
     ]);
 
@@ -75,8 +101,11 @@ const getFiles = async (req, res, next) => {
 
 const getFile = async (req, res, next) => {
   try {
-    const file = await File.findOne({ _id: req.params.id, userId: req.user._id })
-      .populate("collectionId", "title");
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    }).populate("collectionId", "title");
+
     if (!file) return sendError(res, 404, "File not found");
     return sendSuccess(res, 200, "File fetched", { file });
   } catch (error) {
@@ -86,14 +115,15 @@ const getFile = async (req, res, next) => {
 
 const downloadFile = async (req, res, next) => {
   try {
-    const file = await File.findOne({ _id: req.params.id, userId: req.user._id });
-    if (!file) return sendError(res, 404, "File not found");
-    if (!fs.existsSync(file.filePath)) return sendError(res, 404, "File not found on server");
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
 
-    res.setHeader("Content-Disposition", `attachment; filename="${file.originalName}"`);
-    res.setHeader("Content-Type", file.fileType);
-    const fileStream = fs.createReadStream(file.filePath);
-    fileStream.pipe(res);
+    if (!file) return sendError(res, 404, "File not found");
+
+    // Redirect to Cloudinary URL for download
+    return res.redirect(file.filePath);
   } catch (error) {
     next(error);
   }
@@ -101,13 +131,25 @@ const downloadFile = async (req, res, next) => {
 
 const deleteFile = async (req, res, next) => {
   try {
-    const file = await File.findOne({ _id: req.params.id, userId: req.user._id });
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
     if (!file) return sendError(res, 404, "File not found");
 
-    if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
-    await Collection.findByIdAndUpdate(file.collectionId, { $inc: { fileCount: -1 } });
-    await file.deleteOne();
+    // Delete from Cloudinary
+    if (file.fileName) {
+      await cloudinary.uploader
+        .destroy(file.fileName, { resource_type: "raw" })
+        .catch(() => {});
+    }
 
+    await Collection.findByIdAndUpdate(file.collectionId, {
+      $inc: { fileCount: -1 },
+    });
+
+    await file.deleteOne();
     return sendSuccess(res, 200, "File deleted");
   } catch (error) {
     next(error);

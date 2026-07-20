@@ -1,6 +1,38 @@
 const fs = require("fs");
+const path = require("path");
+const https = require("https");
+const http = require("http");
+const os = require("os");
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
+
+// Check if path is a URL (Cloudinary link)
+const isUrl = (str) => {
+  return str && (str.startsWith("http://") || str.startsWith("https://"));
+};
+
+// Download file from URL to temp folder
+const downloadFromUrl = (url) => {
+  return new Promise((resolve, reject) => {
+    const ext = path.extname(url.split("?")[0]) || ".tmp";
+    const tmpPath = path.join(os.tmpdir(), `smartprep_${Date.now()}${ext}`);
+    const file = fs.createWriteStream(tmpPath);
+    const protocol = url.startsWith("https") ? https : http;
+
+    protocol
+      .get(url, (response) => {
+        response.pipe(file);
+        file.on("finish", () => {
+          file.close();
+          resolve(tmpPath);
+        });
+      })
+      .on("error", (err) => {
+        fs.unlink(tmpPath, () => {});
+        reject(err);
+      });
+  });
+};
 
 const extractFromPDF = async (filePath) => {
   try {
@@ -29,7 +61,6 @@ const extractFromPPTX = async (filePath) => {
     let allText = [];
 
     zipEntries.forEach((entry) => {
-      // Get all slide XML files
       if (
         entry.entryName.startsWith("ppt/slides/slide") &&
         entry.entryName.endsWith(".xml") &&
@@ -37,31 +68,22 @@ const extractFromPPTX = async (filePath) => {
         !entry.entryName.includes("slideMaster")
       ) {
         const content = entry.getData().toString("utf8");
-
-        // Remove XML tags and get clean text
         const cleaned = content
-          // Get text between <a:t> tags
           .replace(/<a:t[^>]*>/g, " ")
           .replace(/<\/a:t>/g, " ")
-          // Remove all other XML tags
           .replace(/<[^>]+>/g, " ")
-          // Decode XML entities
           .replace(/&amp;/g, "&")
           .replace(/&lt;/g, "<")
           .replace(/&gt;/g, ">")
           .replace(/&quot;/g, '"')
           .replace(/&apos;/g, "'")
           .replace(/&#x[0-9A-Fa-f]+;/g, " ")
-          // Clean whitespace
           .replace(/\s+/g, " ")
           .trim();
 
-        if (cleaned.length > 10) {
-          allText.push(cleaned);
-        }
+        if (cleaned.length > 10) allText.push(cleaned);
       }
 
-      // Also get slide notes
       if (
         entry.entryName.startsWith("ppt/notesSlides/") &&
         entry.entryName.endsWith(".xml")
@@ -74,48 +96,57 @@ const extractFromPPTX = async (filePath) => {
           .replace(/\s+/g, " ")
           .trim();
 
-        if (cleaned.length > 10) {
-          allText.push("Notes: " + cleaned);
-        }
+        if (cleaned.length > 10) allText.push("Notes: " + cleaned);
       }
     });
 
-    const finalText = allText.join("\n\n");
-
-    if (!finalText || finalText.length < 10) {
-      throw new Error(
-        "No text could be extracted from PPTX. The file may contain only images."
-      );
-    }
-
-    return finalText;
-  } catch (error) {
-    if (error.message.includes("No text")) throw error;
-    throw new Error(`PPTX extraction failed: ${error.message}`);
+    return allText.join("\n\n");
+  } catch {
+    return "";
   }
 };
 
 const extractText = async (filePath, fileType) => {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found at path: ${filePath}`);
-  }
+  let tmpPath = null;
+  let actualPath = filePath;
 
-  if (fileType === "application/pdf") {
-    return await extractFromPDF(filePath);
-  } else if (
-    fileType ===
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    fileType === "application/msword"
-  ) {
-    return await extractFromDOCX(filePath);
-  } else if (
-    fileType ===
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-    fileType === "application/vnd.ms-powerpoint"
-  ) {
-    return await extractFromPPTX(filePath);
-  } else {
-    throw new Error(`Unsupported file type: ${fileType}`);
+  try {
+    // If it's a Cloudinary URL, download it first
+    if (isUrl(filePath)) {
+      tmpPath = await downloadFromUrl(filePath);
+      actualPath = tmpPath;
+    } else {
+      if (!fs.existsSync(actualPath)) {
+        throw new Error(`File not found: ${actualPath}`);
+      }
+    }
+
+    let text = "";
+
+    if (fileType === "application/pdf") {
+      text = await extractFromPDF(actualPath);
+    } else if (
+      fileType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      fileType === "application/msword"
+    ) {
+      text = await extractFromDOCX(actualPath);
+    } else if (
+      fileType ===
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+      fileType === "application/vnd.ms-powerpoint"
+    ) {
+      text = await extractFromPPTX(actualPath);
+    } else {
+      throw new Error(`Unsupported file type: ${fileType}`);
+    }
+
+    return text;
+  } finally {
+    // Clean up temp file
+    if (tmpPath && fs.existsSync(tmpPath)) {
+      fs.unlink(tmpPath, () => {});
+    }
   }
 };
 

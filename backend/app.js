@@ -12,14 +12,26 @@ const analyticsRoutes = require("./routes/analyticsRoutes");
 const plannerRoutes = require("./routes/plannerRoutes");
 const achievementRoutes = require("./routes/achievementRoutes");
 const environmentRoutes = require("./routes/environmentRoutes");
-
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 
+// CORS - Allow Vercel + Localhost
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -33,13 +45,12 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
     message: "SmartPrep API v5 running",
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
   });
 });
 

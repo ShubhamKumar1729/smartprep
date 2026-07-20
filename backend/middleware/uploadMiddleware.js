@@ -1,24 +1,25 @@
 const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 const path = require("path");
-const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 
-const uploadsDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const userDir = path.join(uploadsDir, req.user._id.toString());
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
-    cb(null, userDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
+// Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    return {
+      folder: `smartprep/${req.user._id}`,
+      resource_type: "raw",
+      public_id: `${uuidv4()}_${path.parse(file.originalname).name}`,
+    };
   },
 });
 
@@ -47,4 +48,4 @@ const upload = multer({
   },
 });
 
-module.exports = { upload };
+module.exports = { upload, cloudinary };
