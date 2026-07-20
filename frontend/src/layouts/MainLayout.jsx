@@ -3,6 +3,8 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import useAuth from "../hooks/useAuth.js";
 import useToast from "../hooks/useToast.js";
+import ThemeToggle from "../components/common/ThemeToggle.jsx";
+import { useTheme } from "../context/ThemeContext.jsx";
 
 const navItems = [
   { path: "/home", label: "Home", emoji: "🏠" },
@@ -20,6 +22,7 @@ const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { success } = useToast();
+  const { theme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
@@ -34,15 +37,15 @@ const MainLayout = () => {
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        backgroundColor: "white",
-        borderRight: "1px solid #f1f5f9",
+        backgroundColor: "var(--sidebar-bg)",
+        borderRight: "1px solid var(--border-color)",
       }}
     >
       {/* Logo */}
       <div
         style={{
           padding: "1.25rem 1rem",
-          borderBottom: "1px solid #f1f5f9",
+          borderBottom: "1px solid var(--border-color)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -67,7 +70,7 @@ const MainLayout = () => {
             <p
               style={{
                 fontWeight: 800,
-                color: "#0f172a",
+                color: "var(--text-primary)",
                 fontSize: 15,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.2,
@@ -75,7 +78,13 @@ const MainLayout = () => {
             >
               SmartPrep
             </p>
-            <p style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>
+            <p
+              style={{
+                fontSize: 10,
+                color: "var(--text-muted)",
+                marginTop: 1,
+              }}
+            >
               AI Learning Platform
             </p>
           </div>
@@ -114,8 +123,41 @@ const MainLayout = () => {
         ))}
       </nav>
 
-      {/* User + Logout */}
-      <div style={{ padding: "0.75rem", borderTop: "1px solid #f1f5f9" }}>
+      {/* Theme Toggle + User + Logout */}
+      <div
+        style={{
+          padding: "0.75rem",
+          borderTop: "1px solid var(--border-color)",
+        }}
+      >
+        {/* Theme Toggle */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.5rem 0.875rem",
+            marginBottom: 6,
+            borderRadius: 10,
+            backgroundColor: "var(--bg-tertiary)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--text-muted)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {theme === "dark" ? "🌙" : "☀️"}
+            {theme === "dark" ? "Dark" : "Light"} Mode
+          </span>
+          <ThemeToggle size="sm" />
+        </div>
+
         {/* User Info */}
         <div
           style={{
@@ -124,9 +166,10 @@ const MainLayout = () => {
             gap: 10,
             padding: "0.625rem 0.875rem",
             borderRadius: 10,
-            backgroundColor: "#f8fafc",
+            backgroundColor: "var(--bg-tertiary)",
             marginBottom: 6,
             cursor: "pointer",
+            transition: "background-color 0.15s",
           }}
           onClick={() => navigate("/profile")}
         >
@@ -142,20 +185,29 @@ const MainLayout = () => {
               flexShrink: 0,
             }}
           >
-            <span style={{ color: "white", fontWeight: 700, fontSize: 13 }}>
+            <span
+              style={{ color: "white", fontWeight: 700, fontSize: 13 }}
+            >
               {user?.name?.charAt(0)?.toUpperCase()}
             </span>
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p
               className="line-clamp-1"
-              style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+              }}
             >
               {user?.name}
             </p>
             <p
               className="line-clamp-1"
-              style={{ fontSize: 10, color: "#94a3b8" }}
+              style={{
+                fontSize: 10,
+                color: "var(--text-muted)",
+              }}
             >
               {user?.email}
             </p>
@@ -180,7 +232,7 @@ const MainLayout = () => {
       style={{
         display: "flex",
         height: "100vh",
-        backgroundColor: "#f8fafc",
+        backgroundColor: "var(--bg-primary)",
         overflow: "hidden",
       }}
     >
@@ -232,11 +284,11 @@ const MainLayout = () => {
             position: "absolute",
             top: 12,
             right: 12,
-            background: "#f1f5f9",
+            background: "var(--bg-tertiary)",
             border: "none",
             cursor: "pointer",
             fontSize: 16,
-            color: "#64748b",
+            color: "var(--text-muted)",
             zIndex: 1,
             width: 28,
             height: 28,
@@ -265,8 +317,8 @@ const MainLayout = () => {
         <header
           className="mobile-header"
           style={{
-            backgroundColor: "white",
-            borderBottom: "1px solid #f1f5f9",
+            backgroundColor: "var(--card-bg)",
+            borderBottom: "1px solid var(--border-color)",
             padding: "0.75rem 1rem",
             display: "flex",
             alignItems: "center",
@@ -284,12 +336,19 @@ const MainLayout = () => {
               background: "none",
               cursor: "pointer",
               fontSize: 20,
-              color: "#64748b",
+              color: "var(--text-muted)",
             }}
           >
             ☰
           </motion.button>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flex: 1,
+            }}
+          >
             <div
               style={{
                 width: 28,
@@ -301,20 +360,25 @@ const MainLayout = () => {
                 justifyContent: "center",
               }}
             >
-              <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>
+              <span
+                style={{ color: "white", fontWeight: 800, fontSize: 12 }}
+              >
                 S
               </span>
             </div>
             <span
               style={{
                 fontWeight: 800,
-                color: "#0f172a",
+                color: "var(--text-primary)",
                 letterSpacing: "-0.02em",
               }}
             >
               SmartPrep
             </span>
           </div>
+
+          {/* Theme Toggle on Mobile */}
+          <ThemeToggle size="sm" />
         </header>
 
         {/* Page Content */}
