@@ -4,6 +4,18 @@ const cloudinary = require("cloudinary").v2;
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
+
+// DEBUG - Add these lines
+console.log("========================================");
+console.log("Cloudinary Config Check:");
+console.log("CLOUD_NAME:", process.env.CLOUDINARY_CLOUD_NAME ? "✅ SET" : "❌ MISSING");
+console.log("API_KEY:", process.env.CLOUDINARY_API_KEY ? "✅ SET" : "❌ MISSING");
+console.log("API_SECRET:", process.env.CLOUDINARY_API_SECRET ? "✅ SET" : "❌ MISSING");
+console.log("========================================");
+
+// Configure Cloudinary
+
+// ... rest of your code stays the same
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
